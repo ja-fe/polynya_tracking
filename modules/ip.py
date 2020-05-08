@@ -84,7 +84,7 @@ def FCM(iarr, c, m, eps=.01, ml=100):
 
     #Initialize random membership array
     marr = np.random.rand(iarr.shape[0], iarr.shape[1], c)
-    marr = np.einsum('yxc,yx->yxc', marr, np.sum(marr, axis=-1)) #Norm probablities
+    marr = np.einsum('yxc,yx->yxc', marr, np.sum(marr, axis=-1)**-1) #Norm probablities
 
     #Iterate
     i = 0
