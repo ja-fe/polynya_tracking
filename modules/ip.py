@@ -53,7 +53,7 @@ def FWT(iarr, d = 3, wl='db1', FAR = 1):
 
     return row_im, col_im
 
-def FCM(iarr, c, m, eps=.01, ml=100):
+def FCM(iarr, c, m, eps=.01, ml=100, verbose=True):
     '''
     Implements standard Fuzzy C-Means algorithm on an input array, returning probabalistic segment memberships
     Note the limitations of naive FCM:
@@ -66,8 +66,11 @@ def FCM(iarr, c, m, eps=.01, ml=100):
         iarr -- (y,x) ndarray : Input image data
         c    -- int : number of clusters for segmentation
         m    -- int : fuzzification factor, 1 <= m < inf
+
+    Kwargs:
         eps  -- float : convergence threshold
         ml   -- int : max loops for algorithm before forced termination
+        verbose -- boolean : controls text output
 
     Returns
         marr -- (y,x,c) ndarray : Image membership data
@@ -89,10 +92,10 @@ def FCM(iarr, c, m, eps=.01, ml=100):
     #Iterate
     i = 0
     converged = False
-    print("Iterating FCM...")
+    if verbose: print("Iterating FCM...")
     while i<ml and not converged:
         i+=1
-        if i%10 == 0: print("%i iterations..."%i)
+        if i%10 == 0 and verbose: print("%i iterations..."%i)
 
         #New membership array object
         nmarr = np.array(marr)
@@ -107,12 +110,79 @@ def FCM(iarr, c, m, eps=.01, ml=100):
 
         #Check convergence
         if np.average(np.abs(marr-nmarr)) < eps:
-            print("Reached convergence threshold, exiting iteration")
+            if verbose: print("Reached convergence threshold, exiting iteration")
             converged = True
 
         marr = np.array(nmarr)
 
     return marr
+
+def PFCM(iarr, c, m, gamma, eps=.01, ml=100, verbose=True, nbh = 1):
+    '''
+    Implements Fuzzy C-Means with an additional Penalty term which incorporates a spatial dependence
+    This method originates from Yang and Huang 2007 [IMAGE SEGMENTATION BY FUZZY C-MEANS CLUSTERING ALGORITHM WITH A NOVEL PENALTY TERM]
+
+    Args:
+        iarr   -- (y,x) ndarray : Input image data
+        c      -- int : number of clusters for segmentation
+        m      -- int : fuzzification factor, 1 <= m < inf
+        gamma  -- float : penalty weight factor
+
+    Kwargs:
+        eps      -- float : convergence threshold
+        ml       -- int : max loops for algorithm before forced termination
+        verbose  -- boolean : controls text output
+        nbh      -- int > 0 : reach of pixel neighbourhood (1->8 pixels, 2->24 pixels...)
+
+    Returns
+        marr -- (y,x,c) ndarray : Image membership data
+    '''
+
+    #Basic input check
+    if type(iarr) is not np.ndarray:
+        print("\nError : Input object is not a numpy array\n")
+        raise Exception
+    elif len(iarr.shape) != 2:
+        print('\nError : Input array object does not have dimensionality 2')
+        print('Dimensionality: %i\n'%len(iarr.shape))
+        raise Exception
+
+    #Initialize random membership array
+    marr = np.random.rand(iarr.shape[0], iarr.shape[1], c)
+    marr = np.einsum('yxc,yx->yxc', marr, np.sum(marr, axis=-1)**-1) #Norm probablities
+
+    #Iterate
+    i = 0
+    converged = False
+    if verbose: print("Iterating PFCM...")
+    while i<ml and not converged:
+        i+=1
+        if i%10 == 0 and verbose: print("%i iterations..."%i)
+
+        #New membership array object
+        nmarr = np.array(marr)
+
+        centroids = mth.calculate_centroids(iarr, marr, m)
+        for j in range(c):
+            #See eqn 13 Yang, Huang 2007
+            p = 1/(m-1)
+            nm = mth.neighbour_matrices(marr[...,j], nbh=nbh)
+            npenalty = np.nansum((1-nm)**m, axis=0)
+            num  = (iarr - centroids[j])**2 + gamma * npenalty
+            dens = np.array([(iarr - centroids[rho])**2 + gamma * np.nansum((1-mth.neighbour_matrices(marr[...,rho], nbh=nbh))**m, axis=0) for rho in range(c)])
+            fr   = np.sum((num/dens)**p, axis=0)
+            nmarr[...,j] = fr**-1
+
+        #Check convergenc
+        if np.average(np.abs(marr-nmarr)) < eps:
+            if verbose: print("Reached convergence threshold, exiting iteration")
+            converged = True
+
+        marr = np.array(nmarr)
+
+    return marr
+
+
 
 def naive_membership_assign(marr):
     '''

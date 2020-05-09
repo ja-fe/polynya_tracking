@@ -1,7 +1,4 @@
 import numpy as np
-from array import array
-import matplotlib.pyplot as plt
-
 #------
 # This module handles the reading and writing of file structures
 #------
@@ -27,7 +24,7 @@ def read_NSIDC0051_file(fpath):
     #Northern or southern hemisphere grid?
     if fpath[fpath.index('.')-1] == 'n':
         darray = rawdata[300:].reshape((448,304))
-    elif fpath[fpath.index('.')-1] == 'n':
+    elif fpath[fpath.index('.')-1] == 's':
         darray = rawdata[300:].reshape((332,316))
 
     darray = darray.astype(np.float32)
